@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "UserAccount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserAccount",
+      "type": "object",
+      "description": "Stores user account information, excluding sensitive authentication details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user account."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "registrationDate": {
+          "type": "string",
+          "description": "Date and time when the user registered.",
+          "format": "date-time"
+        },
+        "googleId": {
+          "type": "string",
+          "description": "Reference to the Google Account Id, if the user registered with google. Otherwise null."
+        },
+        "facebookId": {
+          "type": "string",
+          "description": "Reference to the Facebook Account Id, if the user registered with facebook. Otherwise null."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "registrationDate"
+      ]
+    },
+    "PasswordResetRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PasswordResetRequest",
+      "type": "object",
+      "description": "Stores password reset requests.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the password reset request."
+        },
+        "userAccountId": {
+          "type": "string",
+          "description": "Reference to the UserAccount for which the reset was requested. (Relationship: UserAccount 1:N PasswordResetRequest)"
+        },
+        "resetToken": {
+          "type": "string",
+          "description": "Unique token for password reset verification."
+        },
+        "expirationDate": {
+          "type": "string",
+          "description": "Date and time when the reset token expires.",
+          "format": "date-time"
+        },
+        "requestDate": {
+          "type": "string",
+          "description": "Date and time when the reset was requested.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userAccountId",
+        "resetToken",
+        "expirationDate",
+        "requestDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous",
+      "google.com",
+      "facebook.com"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/user_accounts/{userAccountId}",
+        "definition": {
+          "entityName": "UserAccount",
+          "schema": {
+            "$ref": "#/backend/entities/UserAccount"
+          },
+          "description": "Stores user account information. The 'userAccountId' parameter identifies the unique user. Only the user (or an admin role) can access their own data.",
+          "params": [
+            {
+              "name": "userAccountId",
+              "description": "The unique identifier for the user account."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/user_accounts/{userAccountId}/password_reset_requests/{passwordResetRequestId}",
+        "definition": {
+          "entityName": "PasswordResetRequest",
+          "schema": {
+            "$ref": "#/backend/entities/PasswordResetRequest"
+          },
+          "description": "Stores password reset requests associated with a specific user account. Access to these requests is restricted to ensure only authorized users can initiate or validate password resets.",
+          "params": [
+            {
+              "name": "userAccountId",
+              "description": "The unique identifier for the user account associated with the request."
+            },
+            {
+              "name": "passwordResetRequestId",
+              "description": "The unique identifier for the password reset request."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore data structure is designed to support user authentication and password reset functionality for the GameX Landing application. It prioritizes authorization independence and clarity of intent to ensure secure and easily debuggable security rules. The structure uses path-based ownership for user accounts and associated password reset requests.\n\n*   **/user_accounts/{userAccountId}**: Stores core user account information. Security rules will ensure that only the user themselves (or admin roles, if implemented later) can access or modify their own account data.\n*   **/user_accounts/{userAccountId}/password_reset_requests/{passwordResetRequestId}**: Stores password reset requests associated with a user account. The structure follows the 1:N relationship between users and password reset requests. Security rules will restrict access to password reset requests to ensure that only authorized users can initiate or validate resets.\n\nAuthorization Independence: The structure inherently achieves authorization independence. All security rules can be based on the `request.auth.uid` and the document paths. There is no need for `get()` calls to other documents to validate access, which simplifies security rules and ensures atomic operations.\n\nQAPs Support: The structure supports the required QAPs:\n\n*   Private Data: User account data is private and accessible only to the user (path-based ownership). Password reset requests are also tied to the user's path.\n*   No Custom Claims (DBAC): Authorization relies solely on `request.auth.uid` and roles stored in the database (if you need admin roles, create a /roles_admin/{uid} collection).\n*   Rules are not Filters: Security rules are based on the path and `request.auth.uid`, enabling secure list operations without filtering. If you add other roles based on memberships you need to denormalize the roles to the child collections, as explained above."
+  }
+}
